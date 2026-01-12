@@ -11,7 +11,7 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -43,13 +43,17 @@ export default function SignupPage() {
         setLoading(false)
         return
       }
+      // Check if email confirmation is required
+      if (data.user && !data.session) {
+        // Email confirmation required
+        setEmailSent(true)
+        setLoading(false)
+      } else if (data.session) {
 
-      if (data.user) {
-        setSuccess(true)
         setTimeout(() => {
           router.push('/dashboard')
           router.refresh()
-        }, 2000)
+        }, 1500)
       }
     } catch (err) {
       setError('An unexpected error occurred')
@@ -72,7 +76,6 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-dark">
-      {/* Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-profit-500/10 rounded-full blur-3xl animate-pulse-subtle" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-profit-600/10 rounded-full blur-3xl animate-pulse-subtle" />
@@ -88,19 +91,32 @@ export default function SignupPage() {
         </div>
 
         <div className="glass-dark rounded-2xl p-8 shadow-glass-lg animate-slide-up">
-          {success ? (
+          {emailSent ? (
             <div className="text-center py-8 animate-fade-in">
-              <div className="w-16 h-16 bg-profit-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-profit-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-slate-100 mb-2">Account created!</h3>
-              <p className="text-slate-400 mb-4">Redirecting to your dashboard...</p>
+              <h3 className="text-xl font-semibold text-slate-100 mb-2">Check your email!</h3>
+              <p className="text-slate-400 mb-4">
+                We've sent a confirmation link to <span className="text-profit-400 font-medium">{email}</span>
+              </p>
+              <p className="text-sm text-slate-500 mb-6">
+                Click the link in the email to verify your account and get started.
+              </p>
+              <Link
+                href="/login"
+                className="inline-block px-6 py-2 rounded-xl font-medium
+                         bg-slate-800 text-slate-100 border border-slate-700
+                         hover:bg-slate-700 hover:border-slate-600
+                         transition-smooth"
+              >
+                Go to Login
+              </Link>
             </div>
           ) : (
             <form onSubmit={handleSignup} className="space-y-6">
-
               <div>
                 <label htmlFor="fullName" className="block text-sm font-medium text-slate-300 mb-2">
                   Full Name
@@ -188,7 +204,7 @@ export default function SignupPage() {
             </form>
           )}
 
-          {!success && (
+          {!emailSent && (
             <>
               <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center">
