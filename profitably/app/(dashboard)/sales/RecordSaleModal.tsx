@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatCurrency } from '@/lib/utils'
 
+type Platform = 'amazon' | 'ebay' | 'facebook' | 'mercari' | 'poshmark' | 'other'
+
 interface Item {
   id: string
   name: string
@@ -12,11 +14,24 @@ interface Item {
   category: string | null
 }
 
+interface SaleEdit {
+  id: string
+  item_id: string
+  platform: string
+  sale_price: number
+  sale_date: string
+  quantity_sold: number
+  platform_fees: number
+  shipping_cost: number
+  other_fees: number
+  notes: string | null
+}
+
 interface RecordSaleModalProps {
   isOpen: boolean
   onClose: () => void
   items: Item[]
-  saleToEdit?: any
+  saleToEdit?: SaleEdit
 }
 
 export default function RecordSaleModal({ isOpen, onClose, items, saleToEdit }: RecordSaleModalProps) {
@@ -25,7 +40,7 @@ export default function RecordSaleModal({ isOpen, onClose, items, saleToEdit }: 
   const [error, setError] = useState<string | null>(null)
 
   const [selectedItemId, setSelectedItemId] = useState('')
-  const [platform, setPlatform] = useState<'amazon' | 'ebay' | 'facebook' | 'mercari' | 'poshmark' | 'other'>('amazon')
+  const [platform, setPlatform] = useState<Platform>('amazon')
   const [salePrice, setSalePrice] = useState('')
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0])
   const [quantitySold, setQuantitySold] = useState('1')
@@ -38,7 +53,8 @@ export default function RecordSaleModal({ isOpen, onClose, items, saleToEdit }: 
   useEffect(() => {
     if (saleToEdit && isOpen) {
       setSelectedItemId(saleToEdit.item_id)
-      setPlatform(saleToEdit.platform)
+      // Cast the string from DB to our Platform type, falling back to 'other' if invalid
+      setPlatform((saleToEdit.platform as Platform) || 'other')
       setSalePrice(saleToEdit.sale_price.toString())
       setSaleDate(saleToEdit.sale_date)
       setQuantitySold(saleToEdit.quantity_sold.toString())
@@ -81,7 +97,7 @@ export default function RecordSaleModal({ isOpen, onClose, items, saleToEdit }: 
       const url = '/api/sales'
       const method = saleToEdit ? 'PATCH' : 'POST'
 
-      const body: any = {
+      const baseBody = {
         item_id: selectedItemId,
         platform,
         sale_price: parseFloat(salePrice),
@@ -93,9 +109,7 @@ export default function RecordSaleModal({ isOpen, onClose, items, saleToEdit }: 
         notes: notes || null,
       }
 
-      if (saleToEdit) {
-        body.id = saleToEdit.id
-      }
+      const body = saleToEdit ? { ...baseBody, id: saleToEdit.id } : baseBody
 
       const response = await fetch(url, {
         method,
@@ -213,7 +227,7 @@ export default function RecordSaleModal({ isOpen, onClose, items, saleToEdit }: 
                   <select
                     id="platform"
                     value={platform}
-                    onChange={(e) => setPlatform(e.target.value as any)}
+                    onChange={(e) => setPlatform(e.target.value as Platform)}
                     required
                     className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl
                              text-slate-100
@@ -294,7 +308,7 @@ export default function RecordSaleModal({ isOpen, onClose, items, saleToEdit }: 
                 </div>
               </div>
 
-              {/* ... Rest of the fees inputs and footer (Same as original) ... */}
+              {/* ... Rest of the fees inputs and footer ... */}
               <div>
                 <p className="text-sm font-medium text-slate-300 mb-3">Fees & Costs (Optional)</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

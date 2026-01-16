@@ -20,7 +20,7 @@ interface Item {
 interface AddItemModalProps {
   isOpen: boolean
   onClose: () => void
-  itemToEdit?: Item // New prop
+  itemToEdit?: Item
 }
 
 export default function AddItemModal({ isOpen, onClose, itemToEdit }: AddItemModalProps) {
@@ -73,7 +73,7 @@ export default function AddItemModal({ isOpen, onClose, itemToEdit }: AddItemMod
       const url = '/api/items'
       const method = itemToEdit ? 'PATCH' : 'POST'
 
-      const body: any = {
+      const baseBody = {
         name,
         description: description || null,
         sku: sku || null,
@@ -85,9 +85,7 @@ export default function AddItemModal({ isOpen, onClose, itemToEdit }: AddItemMod
         notes: notes || null,
       }
 
-      if (itemToEdit) {
-        body.id = itemToEdit.id
-      }
+      const body = itemToEdit ? { ...baseBody, id: itemToEdit.id } : baseBody
 
       const response = await fetch(url, {
         method,
