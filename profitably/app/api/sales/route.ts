@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     // check if item exists and belongs to user
     const { data: item, error: itemError } = await supabase
       .from('items')
-      .select('id, quantity_on_hand, purchase_price')
+      .select('id, quantity_on_hand, quantity_sold, purchase_price')
       .eq('id', item_id)
       .eq('user_id', user.id)
       .single()
@@ -114,7 +114,16 @@ export async function POST(request: Request) {
       )
     }
 
-    // create sale (database trigger will calculate profit and update quantities)
+    // calculate profits
+    const purchasePrice = item.purchase_price
+    const grossProfit = (sale_price * quantity_sold) - (purchasePrice * quantity_sold)
+    const totalFees = (platform_fees || 0) + (shipping_cost || 0) + (other_fees || 0)
+    const netProfit = grossProfit - totalFees
+    const profitMargin = (sale_price * quantity_sold) > 0
+      ? (netProfit / (sale_price * quantity_sold)) * 100
+      : 0
+
+    // create sale with calculated profit values
     const { data: sale, error } = await supabase
       .from('sales')
       .insert({
@@ -127,6 +136,9 @@ export async function POST(request: Request) {
         platform_fees: platform_fees || 0,
         shipping_cost: shipping_cost || 0,
         other_fees: other_fees || 0,
+        gross_profit: grossProfit,
+        net_profit: netProfit,
+        profit_margin: profitMargin,
         notes: notes || null,
         is_synced_from_api: false,
       })
@@ -144,6 +156,23 @@ export async function POST(request: Request) {
     if (error) {
       console.error('Error creating sale:', error)
       return NextResponse.json({ error: 'Failed to create sale' }, { status: 500 })
+    }
+
+    const { error: updateError } = await supabase
+      .from('items')
+      .update({
+        quantity_on_hand: item.quantity_on_hand - quantity_sold,
+        quantity_sold: item.quantity_sold + quantity_sold,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', item_id)
+
+    if (updateError) {
+      console.error('Error updating item quantities:', updateError)
+
+      return NextResponse.json({
+        error: 'Sale created but failed to update inventory'
+      }, { status: 500 })
     }
 
     return NextResponse.json({ sale }, { status: 201 })
@@ -166,7 +195,6 @@ export async function PATCH(request: Request) {
     const body = await request.json()
     const {
       id,
-      item_id,
       platform,
       sale_price,
       sale_date,
@@ -179,31 +207,59 @@ export async function PATCH(request: Request) {
 
     if (!id) return NextResponse.json({ error: 'Sale ID required' }, { status: 400 })
 
-    const { data: oldSale } = await supabase
+    if (typeof sale_price !== 'number' || sale_price < 0) {
+      return NextResponse.json(
+        { error: 'Sale price must be a positive number' },
+        { status: 400 }
+      )
+    }
+
+    if (typeof quantity_sold !== 'number' || quantity_sold <= 0) {
+      return NextResponse.json(
+        { error: 'Quantity must be a positive number' },
+        { status: 400 }
+      )
+    }
+
+    // Get the old sale
+    const { data: oldSale, error: saleError } = await supabase
       .from('sales')
       .select('*')
       .eq('id', id)
       .eq('user_id', user.id)
       .single()
 
-    if (!oldSale) return NextResponse.json({ error: 'Sale not found' }, { status: 404 })
+    if (saleError || !oldSale) {
+      return NextResponse.json({ error: 'Sale not found' }, { status: 404 })
+    }
 
-    const { data: item } = await supabase
+    const { data: item, error: itemError } = await supabase
       .from('items')
       .select('*')
       .eq('id', oldSale.item_id)
       .single()
 
-    const quantityDiff = quantity_sold - oldSale.quantity_sold
+    if (itemError || !item) {
+      return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+    }
 
-    if (quantityDiff > 0 && item.quantity_on_hand < quantityDiff) {
-       return NextResponse.json({ error: `Not enough stock. You need ${quantityDiff} more, but only have ${item.quantity_on_hand}.` }, { status: 400 })
+    // Calculate available quantity
+    // When editing, available = current on_hand + what was previously sold in this sale
+    const availableQuantity = item.quantity_on_hand + oldSale.quantity_sold
+
+    if (quantity_sold > availableQuantity) {
+      return NextResponse.json({
+        error: `Not enough stock. Only ${availableQuantity} units available (${item.quantity_on_hand} in stock + ${oldSale.quantity_sold} from this sale).`
+      }, { status: 400 })
     }
 
     const purchasePrice = item.purchase_price
-    const gross = (sale_price * quantity_sold) - (purchasePrice * quantity_sold)
-    const net = gross - (platform_fees || 0) - (shipping_cost || 0) - (other_fees || 0)
-    const margin = sale_price > 0 ? (net / (sale_price * quantity_sold)) * 100 : 0
+    const grossProfit = (sale_price * quantity_sold) - (purchasePrice * quantity_sold)
+    const totalFees = (platform_fees || 0) + (shipping_cost || 0) + (other_fees || 0)
+    const netProfit = grossProfit - totalFees
+    const profitMargin = (sale_price * quantity_sold) > 0
+      ? (netProfit / (sale_price * quantity_sold)) * 100
+      : 0
 
     const { data: sale, error: updateError } = await supabase
       .from('sales')
@@ -212,13 +268,14 @@ export async function PATCH(request: Request) {
         sale_price,
         sale_date,
         quantity_sold,
-        platform_fees,
-        shipping_cost,
-        other_fees,
-        notes,
-        gross_profit: gross,
-        net_profit: net,
-        profit_margin: margin
+        platform_fees: platform_fees || 0,
+        shipping_cost: shipping_cost || 0,
+        other_fees: other_fees || 0,
+        gross_profit: grossProfit,
+        net_profit: netProfit,
+        profit_margin: profitMargin,
+        notes: notes || null,
+        updated_at: new Date().toISOString()
       })
       .eq('id', id)
       .select(`
@@ -232,17 +289,31 @@ export async function PATCH(request: Request) {
       `)
       .single()
 
-    if (updateError) throw updateError
+    if (updateError) {
+      console.error('Error updating sale:', updateError)
+      throw updateError
+    }
 
-    // update Inventory
-    if (quantityDiff !== 0) {
-      await supabase
-        .from('items')
-        .update({
-          quantity_on_hand: item.quantity_on_hand - quantityDiff,
-          quantity_sold: item.quantity_sold + quantityDiff
-        })
-        .eq('id', item.id)
+    // Update inventory quantities
+    // New on_hand = current + old_sold - new_sold
+    // New sold = current - old_sold + new_sold
+    const newQuantityOnHand = item.quantity_on_hand + oldSale.quantity_sold - quantity_sold
+    const newQuantitySold = item.quantity_sold - oldSale.quantity_sold + quantity_sold
+
+    const { error: inventoryError } = await supabase
+      .from('items')
+      .update({
+        quantity_on_hand: newQuantityOnHand,
+        quantity_sold: newQuantitySold,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', item.id)
+
+    if (inventoryError) {
+      console.error('Error updating inventory:', inventoryError)
+      return NextResponse.json({
+        error: 'Sale updated but failed to update inventory'
+      }, { status: 500 })
     }
 
     return NextResponse.json({ sale })
@@ -273,30 +344,34 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Sale ID is required' }, { status: 400 })
     }
 
-    const { data: sale } = await supabase
+    // Get the sale to restore inventory
+    const { data: sale, error: saleError } = await supabase
       .from('sales')
       .select('item_id, quantity_sold')
       .eq('id', saleId)
       .eq('user_id', user.id)
       .single()
 
-    if (sale) {
+    if (saleError || !sale) {
+      return NextResponse.json({ error: 'Sale not found' }, { status: 404 })
+    }
 
-      const { data: item } = await supabase
+    const { data: item, error: itemError } = await supabase
+      .from('items')
+      .select('quantity_on_hand, quantity_sold')
+      .eq('id', sale.item_id)
+      .single()
+
+    if (!itemError && item) {
+      // Restore inventory before deleting
+      await supabase
         .from('items')
-        .select('quantity_on_hand, quantity_sold')
+        .update({
+          quantity_on_hand: item.quantity_on_hand + sale.quantity_sold,
+          quantity_sold: item.quantity_sold - sale.quantity_sold,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', sale.item_id)
-        .single()
-
-      if (item) {
-        await supabase
-          .from('items')
-          .update({
-            quantity_on_hand: item.quantity_on_hand + sale.quantity_sold,
-            quantity_sold: item.quantity_sold - sale.quantity_sold
-          })
-          .eq('id', sale.item_id)
-      }
     }
 
     const { error: deleteError } = await supabase
