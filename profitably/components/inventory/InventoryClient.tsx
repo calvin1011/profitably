@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import AddItemModal from './AddItemModal'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
@@ -27,8 +28,33 @@ interface InventoryClientProps {
 }
 
 export default function InventoryClient({ initialItems }: InventoryClientProps) {
+  const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [itemToEdit, setItemToEdit] = useState<Item | undefined>(undefined)
+
+  const handleEdit = (item: Item) => {
+    setItemToEdit(item)
+    setIsModalOpen(true)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this item?')) return
+
+    try {
+      const res = await fetch(`/api/items?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to delete')
+      router.refresh()
+    } catch (error) {
+      console.error('Error deleting:', error)
+      alert('Failed to delete item')
+    }
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setItemToEdit(undefined)
+  }
 
   // filter items based on search
   const filteredItems = initialItems.filter(item =>
@@ -145,12 +171,34 @@ export default function InventoryClient({ initialItems }: InventoryClientProps) 
             {filteredItems.map((item, index) => (
               <div
                 key={item.id}
-                className="glass-dark rounded-xl p-6 hover:shadow-glass-lg transition-smooth animate-slide-up"
+                className="glass-dark rounded-xl p-6 relative group hover:shadow-glass-lg transition-smooth animate-slide-up"
                 style={{ animationDelay: `${0.5 + index * 0.05}s` }}
               >
 
+                {/* Actions: Edit / Delete */}
+                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleEdit(item)}
+                    className="p-2 rounded-lg bg-slate-700/50 hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 transition-smooth"
+                    title="Edit Item"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="p-2 rounded-lg bg-slate-700/50 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-smooth"
+                    title="Delete Item"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
+                  <div className="flex-1 pr-12">
                     <h3 className="text-lg font-semibold text-slate-100 mb-1 line-clamp-2">
                       {item.name}
                     </h3>
@@ -159,11 +207,6 @@ export default function InventoryClient({ initialItems }: InventoryClientProps) 
                         {item.category}
                       </span>
                     )}
-                  </div>
-                  <div className="w-12 h-12 rounded-xl bg-profit-500/20 flex items-center justify-center ml-3">
-                    <svg className="w-6 h-6 text-profit-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                    </svg>
                   </div>
                 </div>
 
@@ -213,7 +256,11 @@ export default function InventoryClient({ initialItems }: InventoryClientProps) 
         )}
       </div>
 
-      <AddItemModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <AddItemModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        itemToEdit={itemToEdit}
+      />
     </div>
   )
 }

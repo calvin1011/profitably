@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatCurrency } from '@/lib/utils'
 
@@ -16,13 +16,14 @@ interface RecordSaleModalProps {
   isOpen: boolean
   onClose: () => void
   items: Item[]
+  saleToEdit?: any
 }
 
-export default function RecordSaleModal({ isOpen, onClose, items }: RecordSaleModalProps) {
+export default function RecordSaleModal({ isOpen, onClose, items, saleToEdit }: RecordSaleModalProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-    
+
   const [selectedItemId, setSelectedItemId] = useState('')
   const [platform, setPlatform] = useState<'amazon' | 'ebay' | 'facebook' | 'mercari' | 'poshmark' | 'other'>('amazon')
   const [salePrice, setSalePrice] = useState('')
@@ -32,6 +33,32 @@ export default function RecordSaleModal({ isOpen, onClose, items }: RecordSaleMo
   const [shippingCost, setShippingCost] = useState('')
   const [otherFees, setOtherFees] = useState('')
   const [notes, setNotes] = useState('')
+
+  // Populate form when editing
+  useEffect(() => {
+    if (saleToEdit && isOpen) {
+      setSelectedItemId(saleToEdit.item_id)
+      setPlatform(saleToEdit.platform)
+      setSalePrice(saleToEdit.sale_price.toString())
+      setSaleDate(saleToEdit.sale_date)
+      setQuantitySold(saleToEdit.quantity_sold.toString())
+      setPlatformFees(saleToEdit.platform_fees ? saleToEdit.platform_fees.toString() : '')
+      setShippingCost(saleToEdit.shipping_cost ? saleToEdit.shipping_cost.toString() : '')
+      setOtherFees(saleToEdit.other_fees ? saleToEdit.other_fees.toString() : '')
+      setNotes(saleToEdit.notes || '')
+    } else if (isOpen) {
+      // Reset
+      setSelectedItemId('')
+      setPlatform('amazon')
+      setSalePrice('')
+      setSaleDate(new Date().toISOString().split('T')[0])
+      setQuantitySold('1')
+      setPlatformFees('')
+      setShippingCost('')
+      setOtherFees('')
+      setNotes('')
+    }
+  }, [saleToEdit, isOpen])
 
   // get selected item details
   const selectedItem = items.find(item => item.id === selectedItemId)
@@ -51,42 +78,42 @@ export default function RecordSaleModal({ isOpen, onClose, items }: RecordSaleMo
     setLoading(true)
 
     try {
-      const response = await fetch('/api/sales', {
-        method: 'POST',
+      const url = '/api/sales'
+      const method = saleToEdit ? 'PATCH' : 'POST'
+
+      const body: any = {
+        item_id: selectedItemId,
+        platform,
+        sale_price: parseFloat(salePrice),
+        sale_date: saleDate,
+        quantity_sold: parseInt(quantitySold),
+        platform_fees: parseFloat(platformFees) || 0,
+        shipping_cost: parseFloat(shippingCost) || 0,
+        other_fees: parseFloat(otherFees) || 0,
+        notes: notes || null,
+      }
+
+      if (saleToEdit) {
+        body.id = saleToEdit.id
+      }
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          item_id: selectedItemId,
-          platform,
-          sale_price: parseFloat(salePrice),
-          sale_date: saleDate,
-          quantity_sold: parseInt(quantitySold),
-          platform_fees: parseFloat(platformFees) || 0,
-          shipping_cost: parseFloat(shippingCost) || 0,
-          other_fees: parseFloat(otherFees) || 0,
-          notes: notes || null,
-        }),
+        body: JSON.stringify(body),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to record sale')
+        throw new Error(data.error || `Failed to ${saleToEdit ? 'update' : 'record'} sale`)
       }
-      
+
       onClose()
       router.refresh()
-        
-      setSelectedItemId('')
-      setPlatform('amazon')
-      setSalePrice('')
-      setSaleDate(new Date().toISOString().split('T')[0])
-      setQuantitySold('1')
-      setPlatformFees('')
-      setShippingCost('')
-      setOtherFees('')
-      setNotes('')
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to record sale')
     } finally {
@@ -103,12 +130,14 @@ export default function RecordSaleModal({ isOpen, onClose, items }: RecordSaleMo
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-        
+
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar glass-dark rounded-2xl shadow-glass-lg animate-slide-up">
         <div className="p-6">
-            
+
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold gradient-text">Record Sale</h2>
+            <h2 className="text-2xl font-bold gradient-text">
+              {saleToEdit ? 'Edit Sale' : 'Record Sale'}
+            </h2>
             <button
               onClick={onClose}
               className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700
@@ -145,10 +174,11 @@ export default function RecordSaleModal({ isOpen, onClose, items }: RecordSaleMo
                   value={selectedItemId}
                   onChange={(e) => setSelectedItemId(e.target.value)}
                   required
-                  className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl
+                  disabled={!!saleToEdit} // Generally safer not to allow changing item on edit
+                  className={`w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl
                            text-slate-100
                            focus:outline-none focus:ring-2 focus:ring-profit-500 focus:border-transparent
-                           transition-smooth"
+                           transition-smooth ${saleToEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <option value="">Choose an item...</option>
                   {items.map((item) => (
@@ -183,7 +213,7 @@ export default function RecordSaleModal({ isOpen, onClose, items }: RecordSaleMo
                   <select
                     id="platform"
                     value={platform}
-                    onChange={(e) => setPlatform(e.target.value as 'amazon' | 'ebay' | 'facebook' | 'mercari' | 'poshmark' | 'other')}
+                    onChange={(e) => setPlatform(e.target.value as any)}
                     required
                     className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl
                              text-slate-100
@@ -233,7 +263,8 @@ export default function RecordSaleModal({ isOpen, onClose, items }: RecordSaleMo
                     id="quantity"
                     type="number"
                     min="1"
-                    max={selectedItem?.quantity_on_hand || 999}
+                    // If editing, allow up to current stock + what was already sold in this sale
+                    max={saleToEdit ? (selectedItem?.quantity_on_hand || 0) + saleToEdit.quantity_sold : (selectedItem?.quantity_on_hand || 999)}
                     value={quantitySold}
                     onChange={(e) => setQuantitySold(e.target.value)}
                     required
@@ -263,6 +294,7 @@ export default function RecordSaleModal({ isOpen, onClose, items }: RecordSaleMo
                 </div>
               </div>
 
+              {/* ... Rest of the fees inputs and footer (Same as original) ... */}
               <div>
                 <p className="text-sm font-medium text-slate-300 mb-3">Fees & Costs (Optional)</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -408,7 +440,7 @@ export default function RecordSaleModal({ isOpen, onClose, items }: RecordSaleMo
                            disabled:opacity-50 disabled:cursor-not-allowed
                            transition-smooth"
                 >
-                  {loading ? 'Recording...' : 'Record Sale'}
+                  {loading ? 'Saving...' : (saleToEdit ? 'Save Changes' : 'Record Sale')}
                 </button>
               </div>
             </form>

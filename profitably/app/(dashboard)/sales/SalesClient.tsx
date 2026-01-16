@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import RecordSaleModal from './RecordSaleModal'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
@@ -10,6 +11,7 @@ interface Item {
   purchase_price: number
   category: string | null
   image_url: string | null
+  quantity_on_hand: number
 }
 
 interface Sale {
@@ -44,15 +46,17 @@ interface SalesClientProps {
 }
 
 export default function SalesClient({ initialSales, items }: SalesClientProps) {
+  const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [filterPlatform, setFilterPlatform] = useState<string>('all')
+  const [saleToEdit, setSaleToEdit] = useState<Sale | undefined>(undefined)
 
   // filter sales by platform
   const filteredSales = filterPlatform === 'all'
     ? initialSales
     : initialSales.filter(sale => sale.platform === filterPlatform)
 
-  // calculate totals
+  // calculate totals (Same as before)
   const totalRevenue = filteredSales.reduce((sum, sale) => sum + (sale.sale_price * sale.quantity_sold), 0)
   const totalProfit = filteredSales.reduce((sum, sale) => sum + sale.net_profit, 0)
   const totalSales = filteredSales.reduce((sum, sale) => sum + sale.quantity_sold, 0)
@@ -72,8 +76,30 @@ export default function SalesClient({ initialSales, items }: SalesClientProps) {
   }
 
   const getPlatformIcon = (platform: string) => {
-    // simple text badges for now - will add actual icons later
     return platform.charAt(0).toUpperCase() + platform.slice(1)
+  }
+
+  const handleEdit = (sale: Sale) => {
+    setSaleToEdit(sale)
+    setIsModalOpen(true)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure? Deleting this sale will restore the inventory.')) return
+
+    try {
+      const res = await fetch(`/api/sales?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to delete')
+      router.refresh()
+    } catch (error) {
+      console.error('Delete error', error)
+      alert('Failed to delete sale')
+    }
+  }
+
+  const handleClose = () => {
+    setIsModalOpen(false)
+    setSaleToEdit(undefined)
   }
 
   return (
@@ -126,25 +152,18 @@ export default function SalesClient({ initialSales, items }: SalesClientProps) {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {/* Total Revenue */}
           <div className="glass-dark rounded-xl p-4 animate-slide-up" style={{ animationDelay: '0.2s' }}>
             <p className="text-slate-400 text-sm mb-1">Total Revenue</p>
             <p className="text-2xl font-bold text-slate-100">{formatCurrency(totalRevenue)}</p>
           </div>
-
-          {/* Total Profit */}
           <div className="glass-dark rounded-xl p-4 animate-slide-up" style={{ animationDelay: '0.3s' }}>
             <p className="text-slate-400 text-sm mb-1">Total Profit</p>
             <p className="text-2xl font-bold gradient-text">{formatCurrency(totalProfit)}</p>
           </div>
-
-          {/* Total Sales */}
           <div className="glass-dark rounded-xl p-4 animate-slide-up" style={{ animationDelay: '0.4s' }}>
             <p className="text-slate-400 text-sm mb-1">Items Sold</p>
             <p className="text-2xl font-bold text-slate-100">{totalSales}</p>
           </div>
-
-          {/* Avg Profit Margin */}
           <div className="glass-dark rounded-xl p-4 animate-slide-up" style={{ animationDelay: '0.5s' }}>
             <p className="text-slate-400 text-sm mb-1">Avg Margin</p>
             <p className="text-2xl font-bold text-slate-100">{avgProfitMargin.toFixed(1)}%</p>
@@ -154,37 +173,22 @@ export default function SalesClient({ initialSales, items }: SalesClientProps) {
         {/* Sales List */}
         {filteredSales.length === 0 ? (
           <div className="glass-dark rounded-2xl p-12 text-center animate-slide-up" style={{ animationDelay: '0.6s' }}>
-            <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
+             {/* Empty state ... */}
+             <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
               <svg className="w-10 h-10 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
               </svg>
             </div>
-            <h3 className="text-xl font-bold text-slate-100 mb-3">
-              {filterPlatform === 'all' ? 'No sales yet' : `No sales on ${filterPlatform}`}
-            </h3>
-            <p className="text-slate-400 mb-6">
-              {filterPlatform === 'all'
-                ? 'Record your first sale to start tracking profit'
-                : 'Try selecting a different platform or record a new sale'}
-            </p>
-            {items.length === 0 ? (
-              <p className="text-sm text-slate-500">Add items to your inventory first before recording sales</p>
-            ) : (
-              <button
+            <h3 className="text-xl font-bold text-slate-100 mb-3">No sales yet</h3>
+            <button
                 onClick={() => setIsModalOpen(true)}
                 className="px-8 py-3 rounded-xl font-semibold
                          bg-gradient-profit text-white
                          shadow-lg shadow-profit-500/50
-                         hover:shadow-glow-profit-lg hover:scale-105
-                         active:scale-95
                          transition-smooth inline-flex items-center gap-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
                 Record First Sale
-              </button>
-            )}
+            </button>
           </div>
         ) : (
           // Sales Grid
@@ -192,11 +196,33 @@ export default function SalesClient({ initialSales, items }: SalesClientProps) {
             {filteredSales.map((sale, index) => (
               <div
                 key={sale.id}
-                className="glass-dark rounded-xl p-6 hover:shadow-glass-lg transition-smooth animate-slide-up"
+                className="glass-dark rounded-xl p-6 relative group hover:shadow-glass-lg transition-smooth animate-slide-up"
                 style={{ animationDelay: `${0.6 + index * 0.05}s` }}
               >
+                 {/* Actions: Edit / Delete */}
+                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleEdit(sale)}
+                    className="p-2 rounded-lg bg-slate-700/50 hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 transition-smooth"
+                    title="Edit Sale"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(sale.id)}
+                    className="p-2 rounded-lg bg-slate-700/50 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-smooth"
+                    title="Delete Sale"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
+                  <div className="flex-1 pr-12">
                     <h3 className="text-lg font-semibold text-slate-100 mb-2 line-clamp-2">
                       {sale.items.name}
                     </h3>
@@ -204,11 +230,6 @@ export default function SalesClient({ initialSales, items }: SalesClientProps) {
                       <span className={`inline-block px-2 py-1 text-xs rounded-lg border ${getPlatformColor(sale.platform)}`}>
                         {getPlatformIcon(sale.platform)}
                       </span>
-                      {sale.items.category && (
-                        <span className="inline-block px-2 py-1 text-xs rounded-lg bg-slate-800 text-slate-400">
-                          {sale.items.category}
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -265,7 +286,12 @@ export default function SalesClient({ initialSales, items }: SalesClientProps) {
         )}
       </div>
 
-      <RecordSaleModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} items={items} />
+      <RecordSaleModal
+        isOpen={isModalOpen}
+        onClose={handleClose}
+        items={items}
+        saleToEdit={saleToEdit}
+      />
     </div>
   )
 }

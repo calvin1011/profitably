@@ -115,6 +115,54 @@ export async function POST(request: Request) {
   }
 }
 
+// Update an item
+export async function PATCH(request: Request) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { id, ...updates } = body
+
+    if (!id) {
+      return NextResponse.json({ error: 'Item ID is required' }, { status: 400 })
+    }
+
+
+    const { data: item, error } = await supabase
+      .from('items')
+      .update({
+        name: updates.name,
+        description: updates.description,
+        sku: updates.sku,
+        category: updates.category,
+        purchase_price: updates.purchase_price,
+        purchase_date: updates.purchase_date,
+        purchase_location: updates.purchase_location,
+        notes: updates.notes,
+
+      })
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating item:', error)
+      return NextResponse.json({ error: 'Failed to update item' }, { status: 500 })
+    }
+
+    return NextResponse.json({ item })
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 // delete an item
 export async function DELETE(request: Request) {
   try {

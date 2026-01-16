@@ -1,14 +1,29 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+
+interface Item {
+  id: string
+  name: string
+  description: string | null
+  sku: string | null
+  category: string | null
+  purchase_price: number
+  purchase_date: string
+  purchase_location: string
+  quantity_purchased: number
+  quantity_on_hand: number
+  notes: string | null
+}
 
 interface AddItemModalProps {
   isOpen: boolean
   onClose: () => void
+  itemToEdit?: Item // New prop
 }
 
-export default function AddItemModal({ isOpen, onClose }: AddItemModalProps) {
+export default function AddItemModal({ isOpen, onClose, itemToEdit }: AddItemModalProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -23,34 +38,69 @@ export default function AddItemModal({ isOpen, onClose }: AddItemModalProps) {
   const [sku, setSku] = useState('')
   const [notes, setNotes] = useState('')
 
+  // Populate form if editing
+  useEffect(() => {
+    if (itemToEdit && isOpen) {
+      setName(itemToEdit.name)
+      setDescription(itemToEdit.description || '')
+      setPurchasePrice(itemToEdit.purchase_price.toString())
+      setPurchaseDate(itemToEdit.purchase_date)
+      setPurchaseLocation(itemToEdit.purchase_location)
+      setQuantity(itemToEdit.quantity_purchased.toString())
+      setCategory(itemToEdit.category || '')
+      setSku(itemToEdit.sku || '')
+      setNotes(itemToEdit.notes || '')
+    } else if (isOpen) {
+      // Reset defaults for add mode
+      setName('')
+      setDescription('')
+      setPurchasePrice('')
+      setPurchaseDate(new Date().toISOString().split('T')[0])
+      setPurchaseLocation('')
+      setQuantity('1')
+      setCategory('')
+      setSku('')
+      setNotes('')
+    }
+  }, [itemToEdit, isOpen])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
 
     try {
-      const response = await fetch('/api/items', {
-        method: 'POST',
+      const url = '/api/items'
+      const method = itemToEdit ? 'PATCH' : 'POST'
+
+      const body: any = {
+        name,
+        description: description || null,
+        sku: sku || null,
+        category: category || null,
+        purchase_price: parseFloat(purchasePrice),
+        purchase_date: purchaseDate,
+        purchase_location: purchaseLocation,
+        quantity_purchased: parseInt(quantity),
+        notes: notes || null,
+      }
+
+      if (itemToEdit) {
+        body.id = itemToEdit.id
+      }
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          name,
-          description: description || null,
-          sku: sku || null,
-          category: category || null,
-          purchase_price: parseFloat(purchasePrice),
-          purchase_date: purchaseDate,
-          purchase_location: purchaseLocation,
-          quantity_purchased: parseInt(quantity),
-          notes: notes || null,
-        }),
+        body: JSON.stringify(body),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create item')
+        throw new Error(data.error || `Failed to ${itemToEdit ? 'update' : 'create'} item`)
       }
 
       onClose()
@@ -67,7 +117,7 @@ export default function AddItemModal({ isOpen, onClose }: AddItemModalProps) {
       setSku('')
       setNotes('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create item')
+      setError(err instanceof Error ? err.message : 'Failed to save item')
     } finally {
       setLoading(false)
     }
@@ -87,7 +137,9 @@ export default function AddItemModal({ isOpen, onClose }: AddItemModalProps) {
         <div className="p-6">
 
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold gradient-text">Add New Item</h2>
+            <h2 className="text-2xl font-bold gradient-text">
+              {itemToEdit ? 'Edit Item' : 'Add New Item'}
+            </h2>
             <button
               onClick={onClose}
               className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700
@@ -155,15 +207,22 @@ export default function AddItemModal({ isOpen, onClose }: AddItemModalProps) {
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                   required
-                  className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl
+                  // Disable quantity editing for now to keep logic simple,
+                  // or allow it but be aware api logic needs to handle stock changes
+                  disabled={!!itemToEdit}
+                  className={`w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl
                            text-slate-100 placeholder-slate-500
                            focus:outline-none focus:ring-2 focus:ring-profit-500 focus:border-transparent
-                           transition-smooth"
+                           transition-smooth ${itemToEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
                   placeholder="1"
                 />
+                {itemToEdit && (
+                  <p className="text-xs text-slate-500 mt-1">Quantity cannot be edited directly.</p>
+                )}
               </div>
             </div>
 
+            {/* Rest of the form remains largely the same */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="location" className="block text-sm font-medium text-slate-300 mb-2">
@@ -300,7 +359,7 @@ export default function AddItemModal({ isOpen, onClose }: AddItemModalProps) {
                          disabled:opacity-50 disabled:cursor-not-allowed
                          transition-smooth"
               >
-                {loading ? 'Adding...' : 'Add Item'}
+                {loading ? 'Saving...' : (itemToEdit ? 'Save Changes' : 'Add Item')}
               </button>
             </div>
           </form>
