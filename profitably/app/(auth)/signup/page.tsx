@@ -85,7 +85,7 @@ export default function SignupPage() {
         {/* Logo and header */}
         <div className="text-center mb-8 animate-slide-down">
           <h1 className="text-4xl font-bold mb-2">
-            <span className="gradient-text">Profitably</span>
+            <span className="gradient-text">Rekodry</span>
           </h1>
           <p className="text-slate-400">Start tracking your profits today</p>
         </div>

@@ -5,14 +5,14 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Profitably - Track Your Reselling Profits',
+  title: 'Rekodry - Track Your Reselling Profits',
   description: 'Multi-platform inventory and profit tracking for resellers',
   manifest: '/manifest.json',
   themeColor: '#10b981',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Profitably',
+    title: 'Rekodry',
   },
 }
 
