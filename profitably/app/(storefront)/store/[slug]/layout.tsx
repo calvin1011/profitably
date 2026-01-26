@@ -2,20 +2,22 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import CartIcon from '@/components/storefront/CartIcon'
+import React from "react";
 
 export default async function StoreLayout({
   children,
   params,
 }: {
   children: React.ReactNode
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }) {
+  const { slug } = await params
   const supabase = await createClient()
 
   const { data: store, error } = await supabase
     .from('store_settings')
     .select('*')
-    .eq('store_slug', params.slug)
+    .eq('store_slug', slug)
     .eq('is_active', true)
     .single()
 
@@ -29,7 +31,7 @@ export default async function StoreLayout({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-8">
-              <Link href={`/store/${params.slug}`} className="flex items-center gap-3">
+              <Link href={`/store/${slug}`} className="flex items-center gap-3">
                 {store.logo_url && (
                   <img
                     src={store.logo_url}
@@ -44,7 +46,7 @@ export default async function StoreLayout({
 
               <nav className="hidden md:flex items-center gap-6">
                 <Link
-                  href={`/store/${params.slug}`}
+                  href={`/store/${slug}`}
                   className="text-slate-300 hover:text-slate-100 transition-colors text-sm font-medium"
                 >
                   All Products
@@ -83,7 +85,7 @@ export default async function StoreLayout({
                 {store.return_policy && (
                   <li>
                     <Link
-                      href={`/store/${params.slug}/policies/returns`}
+                      href={`/store/${slug}/policies/returns`}
                       className="text-slate-400 hover:text-slate-300 text-sm transition-colors"
                     >
                       Return Policy
@@ -93,7 +95,7 @@ export default async function StoreLayout({
                 {store.shipping_policy && (
                   <li>
                     <Link
-                      href={`/store/${params.slug}/policies/shipping`}
+                      href={`/store/${slug}/policies/shipping`}
                       className="text-slate-400 hover:text-slate-300 text-sm transition-colors"
                     >
                       Shipping Policy
@@ -103,7 +105,7 @@ export default async function StoreLayout({
                 {store.terms_of_service && (
                   <li>
                     <Link
-                      href={`/store/${params.slug}/policies/terms`}
+                      href={`/store/${slug}/policies/terms`}
                       className="text-slate-400 hover:text-slate-300 text-sm transition-colors"
                     >
                       Terms of Service

@@ -5,14 +5,15 @@ import ProductDetailClient from '@/components/storefront/ProductDetailClient'
 export default async function ProductDetailPage({
   params,
 }: {
-  params: { slug: string; productSlug: string }
+  params: Promise<{ slug: string; productSlug: string }>
 }) {
+  const { slug, productSlug } = await params
   const supabase = await createClient()
 
   const { data: store, error: storeError } = await supabase
     .from('store_settings')
     .select('*')
-    .eq('store_slug', params.slug)
+    .eq('store_slug', slug)
     .eq('is_active', true)
     .single()
 
@@ -38,7 +39,7 @@ export default async function ProductDetailPage({
       )
     `)
     .eq('user_id', store.user_id)
-    .eq('slug', params.productSlug)
+    .eq('slug', productSlug)
     .eq('is_published', true)
     .single()
 
@@ -71,7 +72,7 @@ export default async function ProductDetailPage({
     <ProductDetailClient
       product={product}
       store={store}
-      storeSlug={params.slug}
+      storeSlug={slug}
       relatedProducts={relatedProducts || []}
     />
   )
