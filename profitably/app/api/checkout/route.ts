@@ -18,16 +18,14 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { items, store_slug, shipping_address } = body
 
+    console.log('Checkout request:', { items, store_slug })
+
     if (!items || items.length === 0) {
       return NextResponse.json({ error: 'No items in cart' }, { status: 400 })
     }
 
     if (!store_slug) {
       return NextResponse.json({ error: 'Store slug required' }, { status: 400 })
-    }
-
-    if (!shipping_address || !shipping_address.line1 || !shipping_address.city || !shipping_address.state || !shipping_address.postal_code || !shipping_address.country) {
-      return NextResponse.json({ error: 'Complete shipping address required' }, { status: 400 })
     }
 
     const { data: store, error: storeError } = await supabase
@@ -38,6 +36,7 @@ export async function POST(request: Request) {
       .single()
 
     if (storeError || !store) {
+      console.error('Store not found:', storeError)
       return NextResponse.json({ error: 'Store not found' }, { status: 404 })
     }
 
@@ -47,8 +46,9 @@ export async function POST(request: Request) {
       .from('products')
       .select(`
         *,
-        items (
+        items!inner (
           id,
+          name,
           quantity_on_hand
         )
       `)
@@ -56,8 +56,15 @@ export async function POST(request: Request) {
       .eq('user_id', store.user_id)
       .eq('is_published', true)
 
-    if (productsError || !products) {
+    console.log('Products fetched:', products)
+
+    if (productsError) {
+      console.error('Error fetching products:', productsError)
       return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 })
+    }
+
+    if (!products || products.length === 0) {
+      return NextResponse.json({ error: 'No products found' }, { status: 404 })
     }
 
     const lineItems = []
@@ -67,14 +74,35 @@ export async function POST(request: Request) {
       const product = products.find((p) => p.id === cartItem.product_id)
 
       if (!product) {
-        return NextResponse.json({ error: `Product ${cartItem.product_id} not found` }, { status: 404 })
+        console.error(`Product not found: ${cartItem.product_id}`)
+        return NextResponse.json({
+          error: `Product not found: ${cartItem.product_id}`
+        }, { status: 404 })
       }
 
       const itemData = Array.isArray(product.items) ? product.items[0] : product.items
 
-      if (!itemData || itemData.quantity_on_hand < cartItem.quantity) {
+      console.log('Checking stock for:', {
+        title: product.title,
+        itemData,
+        requestedQuantity: cartItem.quantity
+      })
+
+      if (!itemData) {
+        console.error(`No item data for product: ${product.title}`)
         return NextResponse.json({
-          error: `Insufficient stock for ${product.title}`
+          error: `No inventory data for ${product.title}`
+        }, { status: 400 })
+      }
+
+      if (itemData.quantity_on_hand < cartItem.quantity) {
+        console.error(`Insufficient stock:`, {
+          title: product.title,
+          available: itemData.quantity_on_hand,
+          requested: cartItem.quantity
+        })
+        return NextResponse.json({
+          error: `Insufficient stock for ${product.title}. Only ${itemData.quantity_on_hand} available.`
         }, { status: 400 })
       }
 
@@ -128,11 +156,12 @@ export async function POST(request: Request) {
       },
     })
 
+    console.log('Stripe session created:', session.id)
     return NextResponse.json({ sessionId: session.id, url: session.url })
   } catch (error) {
     console.error('Checkout error:', error)
     return NextResponse.json(
-      { error: 'Failed to create checkout session' },
+      { error: error instanceof Error ? error.message : 'Failed to create checkout session' },
       { status: 500 }
     )
   }
