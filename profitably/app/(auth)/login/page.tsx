@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -86,7 +86,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl 
+                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl
                          text-slate-100 placeholder-slate-500
                          focus:outline-none focus:ring-2 focus:ring-profit-500 focus:border-transparent
                          transition-smooth"
@@ -105,7 +105,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl 
+                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl
                          text-slate-100 placeholder-slate-500
                          focus:outline-none focus:ring-2 focus:ring-profit-500 focus:border-transparent
                          transition-smooth"
@@ -189,5 +189,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-slate-400">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   )
 }
