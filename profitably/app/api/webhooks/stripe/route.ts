@@ -44,6 +44,11 @@ export async function POST(request: Request) {
       const customerEmail = session.customer_details?.email || session.customer_email
       const shippingAddress = session.shipping_details?.address
 
+      console.log('=== WEBHOOK PROCESSING ===')
+      console.log('Store Owner (user_id):', userId)
+      console.log('Customer Email:', customerEmail)
+      console.log('Items:', items)
+
       let customerId = null
 
       if (customerEmail) {
@@ -112,7 +117,8 @@ export async function POST(request: Request) {
           items (
             id,
             quantity_on_hand,
-            quantity_sold
+            quantity_sold,
+            purchase_price
           )
         `)
         .in('id', productIds)
@@ -170,8 +176,11 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Failed to create order' }, { status: 500 })
       }
 
+      console.log('Order created:', order.id)
+
       const orderItems = []
       const inventoryUpdates = []
+      const salesRecords = []
 
       for (const { product, cartItem, itemSubtotal } of orderItemsData) {
         const itemData = Array.isArray(product.items) ? product.items[0] : product.items
@@ -193,6 +202,39 @@ export async function POST(request: Request) {
           newOnHand: itemData.quantity_on_hand - cartItem.quantity,
           newSold: itemData.quantity_sold + cartItem.quantity,
         })
+
+        const purchasePrice = itemData.purchase_price
+        const salePrice = product.price
+        const quantitySold = cartItem.quantity
+
+        // Calculate fees (shipping cost divided proportionally by item subtotal)
+        const itemShippingCost = (itemSubtotal / subtotal) * shippingCost
+
+        // Calculate profits
+        const grossProfit = (salePrice * quantitySold) - (purchasePrice * quantitySold)
+        const netProfit = grossProfit - itemShippingCost
+        const profitMargin = (salePrice * quantitySold) > 0
+          ? (netProfit / (salePrice * quantitySold)) * 100
+          : 0
+
+        salesRecords.push({
+          user_id: userId,
+          item_id: product.item_id,
+          listing_id: null,
+          platform: 'other',
+          sale_price: salePrice,
+          sale_date: new Date().toISOString().split('T')[0],
+          quantity_sold: quantitySold,
+          platform_fees: 0,
+          shipping_cost: itemShippingCost,
+          other_fees: 0,
+          gross_profit: grossProfit,
+          net_profit: netProfit,
+          profit_margin: profitMargin,
+          platform_order_id: order.order_number,
+          is_synced_from_api: false,
+          notes: `Storefront order ${order.order_number}`,
+        })
       }
 
       const { error: orderItemsError } = await supabase
@@ -202,6 +244,18 @@ export async function POST(request: Request) {
       if (orderItemsError) {
         console.error('Error creating order items:', orderItemsError)
         return NextResponse.json({ error: 'Failed to create order items' }, { status: 500 })
+      }
+
+      console.log('Order items created')
+
+      const { error: salesError } = await supabase
+        .from('sales')
+        .insert(salesRecords)
+
+      if (salesError) {
+        console.error('Error creating sales records:', salesError)
+      } else {
+        console.log('Sales records created:', salesRecords.length)
       }
 
       for (const update of inventoryUpdates) {
@@ -217,6 +271,8 @@ export async function POST(request: Request) {
           console.error('Error updating inventory:', inventoryError)
         }
       }
+
+      console.log('Inventory updated')
 
       const { error: customerUpdateError } = await supabase
         .from('customers')
@@ -273,11 +329,9 @@ export async function POST(request: Request) {
         } catch (emailError) {
           console.error('Error sending order confirmation email:', emailError)
         }
-      } else {
-        console.log('Resend not configured - skipping order confirmation email')
       }
 
-      console.log('Order created successfully:', order.id)
+      console.log(' WEBHOOK COMPLETED SUCCESSFULLY ')
       return NextResponse.json({ received: true, order_id: order.id })
 
     } catch (err) {
