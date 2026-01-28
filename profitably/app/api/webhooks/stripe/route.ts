@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { headers } from 'next/headers'
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const session = event.data.object as any
 
     try {
-      const supabase = await createClient()
+      const supabase = createAdminClient()
 
       const metadata = session.metadata
       if (!metadata || !metadata.user_id || !metadata.items) {
