@@ -20,7 +20,7 @@ interface Product {
   slug: string
   price: number
   compare_at_price: number | null
-  items: Item
+  items: Item | Item[]
   product_images: ProductImage[]
 }
 
@@ -32,7 +32,8 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, storeSlug, index }: ProductCardProps) {
   const mainImage = product.product_images.find((img) => img.position === 0) || product.product_images[0]
-  const isOutOfStock = product.items.quantity_on_hand === 0
+  const itemData = Array.isArray(product.items) ? product.items[0] : product.items
+  const isOutOfStock = !itemData || itemData.quantity_on_hand === 0
   const isLowStock = product.items.quantity_on_hand > 0 && product.items.quantity_on_hand <= 5
 
   return (

@@ -84,7 +84,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
           )}
         </div>
 
-        <ProductGrid products={publishedProducts as any[]} storeSlug={slug} />
+        <ProductGrid products={publishedProducts as any} storeSlug={slug} />
       </div>
     </div>
   )

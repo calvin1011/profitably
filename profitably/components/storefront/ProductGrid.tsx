@@ -3,6 +3,12 @@
 import { useState, useMemo } from 'react'
 import ProductCard from './ProductCard'
 
+type Item = {
+  id: string
+  name: string
+  quantity_on_hand: number
+}
+
 type Product = {
   id: string
   title: string
@@ -10,15 +16,7 @@ type Product = {
   slug: string
   price: number
   compare_at_price: number | null
-  items: {
-    id: string
-    name: string
-    quantity_on_hand: number
-  } | {
-    id: string
-    name: string
-    quantity_on_hand: number
-  }[]
+  items: Item | Item[]
   product_images: {
     id: string
     image_url: string
