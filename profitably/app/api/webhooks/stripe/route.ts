@@ -47,6 +47,18 @@ export async function POST(request: Request) {
       const customerEmail = customerEmailRaw?.trim().toLowerCase()
       const shippingAddress = session.shipping_details?.address
 
+      // Idempotency guard: skip if we already processed this session
+      const { data: existingOrder } = await supabase
+        .from('orders')
+        .select('id, order_number')
+        .eq('stripe_checkout_session_id', session.id)
+        .single()
+
+      if (existingOrder) {
+        console.log('Order already exists for session:', session.id)
+        return NextResponse.json({ received: true, order_id: existingOrder.id })
+      }
+
       console.log('=== WEBHOOK PROCESSING ===')
       console.log('Store Owner (user_id):', userId)
       console.log('Customer Email:', customerEmail)
