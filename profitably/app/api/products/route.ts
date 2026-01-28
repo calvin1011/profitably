@@ -286,6 +286,18 @@ export async function DELETE(request: Request) {
       })
     }
 
+    // Delete product images first (foreign key constraint)
+    const { error: imagesDeleteError } = await supabase
+      .from('product_images')
+      .delete()
+      .eq('product_id', productId)
+
+    if (imagesDeleteError) {
+      console.error('Error deleting product images:', imagesDeleteError)
+      return NextResponse.json({ error: 'Failed to delete product images' }, { status: 500 })
+    }
+
+    // Now delete the product
     const { error: deleteError } = await supabase
       .from('products')
       .delete()
