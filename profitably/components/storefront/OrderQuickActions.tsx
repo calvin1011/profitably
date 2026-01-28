@@ -28,6 +28,7 @@ export default function OrderQuickActions({
   storeName,
   businessEmail,
   businessPhone,
+  items,
 }: OrderQuickActionsProps) {
   const { addItem } = useCart()
   const subject = encodeURIComponent(`Order ${orderNumber} support`)
