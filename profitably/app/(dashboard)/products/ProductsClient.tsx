@@ -78,10 +78,15 @@ export default function ProductsClient({ initialProducts, availableItems }: Prod
 
       if (!res.ok) throw new Error(data.error || 'Failed to delete')
 
+      // Check if product was unpublished instead of deleted (has orders)
+      if (data.message?.includes('unpublished instead')) {
+        alert('This product has existing orders and cannot be deleted. It has been unpublished instead.')
+      }
+
       router.refresh()
     } catch (error) {
       console.error('Error deleting product:', error)
-      alert('Failed to delete product')
+      alert(error instanceof Error ? error.message : 'Failed to delete product')
     }
   }
 
