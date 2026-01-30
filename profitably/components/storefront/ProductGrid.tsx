@@ -23,14 +23,17 @@ type Product = {
     alt_text: string | null
     position: number
   }[]
+  averageRating?: number
+  totalReviews?: number
 }
 
 interface ProductGridProps {
   products: Product[]
   storeSlug: string
+  customerId?: string | null
 }
 
-export default function ProductGrid({ products, storeSlug }: ProductGridProps) {
+export default function ProductGrid({ products, storeSlug, customerId }: ProductGridProps) {
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredProducts = useMemo(() => {
@@ -118,6 +121,7 @@ export default function ProductGrid({ products, storeSlug }: ProductGridProps) {
               product={product}
               storeSlug={storeSlug}
               index={index}
+              customerId={customerId}
             />
           ))}
         </div>

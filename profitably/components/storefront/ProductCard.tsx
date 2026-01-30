@@ -1,5 +1,9 @@
+'use client'
+
 import Link from 'next/link'
 import { formatCurrency } from '@/lib/utils'
+import WishlistButton from './WishlistButton'
+import StarRating from './StarRating'
 
 interface ProductImage {
   id: string
@@ -22,15 +26,18 @@ interface Product {
   compare_at_price: number | null
   items: Item | Item[]
   product_images: ProductImage[]
+  averageRating?: number
+  totalReviews?: number
 }
 
 interface ProductCardProps {
   product: Product
   storeSlug: string
   index: number
+  customerId?: string | null
 }
 
-export default function ProductCard({ product, storeSlug, index }: ProductCardProps) {
+export default function ProductCard({ product, storeSlug, index, customerId }: ProductCardProps) {
   const mainImage = product.product_images.find((img) => img.position === 0) || product.product_images[0]
   const itemData = Array.isArray(product.items) ? product.items[0] : product.items
   const isOutOfStock = !itemData || itemData.quantity_on_hand === 0
@@ -71,6 +78,17 @@ export default function ProductCard({ product, storeSlug, index }: ProductCardPr
           </div>
         )}
 
+        {/* Wishlist Button */}
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          {!isLowStock && (
+            <WishlistButton
+              productId={product.id}
+              customerId={customerId || null}
+              size="sm"
+            />
+          )}
+        </div>
+
         {product.compare_at_price && product.compare_at_price > product.price && (
           <div className="absolute top-2 left-2 px-2 py-1 bg-red-500 text-white text-xs font-semibold rounded">
             Sale
@@ -82,6 +100,18 @@ export default function ProductCard({ product, storeSlug, index }: ProductCardPr
         <h3 className="text-slate-100 font-semibold mb-2 line-clamp-2 group-hover:text-profit-400 transition-colors">
           {product.title}
         </h3>
+
+        {/* Star Rating */}
+        {product.averageRating !== undefined && product.averageRating > 0 && (
+          <div className="mb-2">
+            <StarRating
+              rating={product.averageRating}
+              size="sm"
+              showNumber
+              totalReviews={product.totalReviews}
+            />
+          </div>
+        )}
 
         <div className="flex items-baseline gap-2">
           <span className="text-lg font-bold gradient-text">

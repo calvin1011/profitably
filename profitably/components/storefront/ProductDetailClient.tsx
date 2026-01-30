@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { useCart } from '@/lib/cart-context'
 import { formatCurrency } from '@/lib/utils'
 import ProductCard from './ProductCard'
+import ReviewsSection from './ReviewsSection'
+import StarRating from './StarRating'
+import WishlistButton from './WishlistButton'
 
 interface ProductImage {
   id: string
@@ -46,6 +49,9 @@ interface ProductDetailClientProps {
   store: StoreSettings
   storeSlug: string
   relatedProducts: Product[]
+  customerId?: string | null
+  averageRating?: number
+  totalReviews?: number
 }
 
 export default function ProductDetailClient({
@@ -53,6 +59,9 @@ export default function ProductDetailClient({
   store,
   storeSlug,
   relatedProducts,
+  customerId,
+  averageRating = 0,
+  totalReviews = 0,
 }: ProductDetailClientProps) {
   const { addItem } = useCart()
   const [quantity, setQuantity] = useState(1)
@@ -138,9 +147,23 @@ export default function ProductDetailClient({
           </div>
 
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-slate-100 mb-4">
-              {product.title}
-            </h1>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <h1 className="text-3xl md:text-4xl font-bold text-slate-100">
+                {product.title}
+              </h1>
+              <WishlistButton
+                productId={product.id}
+                customerId={customerId || null}
+                size="lg"
+              />
+            </div>
+
+            {/* Rating display */}
+            {averageRating > 0 && (
+              <div className="flex items-center gap-2 mb-4">
+                <StarRating rating={averageRating} size="md" showNumber totalReviews={totalReviews} />
+              </div>
+            )}
 
             <div className="flex items-baseline gap-3 mb-6">
               <span className="text-3xl font-bold gradient-text">
@@ -260,8 +283,15 @@ export default function ProductDetailClient({
           </div>
         </div>
 
+        {/* Reviews Section */}
+        <ReviewsSection
+          productId={product.id}
+          customerId={customerId || null}
+          storeName={store.store_name}
+        />
+
         {relatedProducts.length > 0 && (
-          <div>
+          <div className="mt-12">
             <h2 className="text-2xl font-bold text-slate-100 mb-6">You May Also Like</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {relatedProducts.slice(0, 4).map((relatedProduct, index) => (
@@ -270,6 +300,7 @@ export default function ProductDetailClient({
                   product={relatedProduct}
                   storeSlug={storeSlug}
                   index={index}
+                  customerId={customerId}
                 />
               ))}
             </div>

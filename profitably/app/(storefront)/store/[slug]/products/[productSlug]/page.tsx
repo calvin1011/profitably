@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { cookies } from 'next/headers'
 import { notFound } from 'next/navigation'
 import ProductDetailClient from '@/components/storefront/ProductDetailClient'
 
@@ -9,6 +11,11 @@ export default async function ProductDetailPage({
 }) {
   const { slug, productSlug } = await params
   const supabase = await createClient()
+  const adminClient = createAdminClient()
+  
+  // Get customer session
+  const cookieStore = await cookies()
+  const customerId = cookieStore.get('customer_id')?.value || null
 
   const { data: store, error: storeError } = await supabase
     .from('store_settings')
@@ -75,12 +82,29 @@ export default async function ProductDetailPage({
     return p.slug && itemData && itemData.quantity_on_hand > 0
   })
 
+  // Fetch average rating for this product
+  const { data: reviews } = await adminClient
+    .from('reviews')
+    .select('rating')
+    .eq('product_id', product.id)
+    .eq('is_approved', true)
+
+  let averageRating = 0
+  let totalReviews = 0
+  if (reviews && reviews.length > 0) {
+    totalReviews = reviews.length
+    averageRating = Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10
+  }
+
   return (
     <ProductDetailClient
       product={product}
       store={store}
       storeSlug={slug}
       relatedProducts={relatedProducts || []}
+      customerId={customerId}
+      averageRating={averageRating}
+      totalReviews={totalReviews}
     />
   )
 }

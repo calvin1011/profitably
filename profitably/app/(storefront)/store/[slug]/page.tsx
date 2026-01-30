@@ -1,10 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
+import { cookies } from 'next/headers'
 import ProductGrid from '@/components/storefront/ProductGrid'
 
 export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const supabase = await createClient()
+  const adminClient = createAdminClient()
+
+  // Get customer session
+  const cookieStore = await cookies()
+  const customerId = cookieStore.get('customer_id')?.value || null
 
   const { data: store, error: storeError } = await supabase
     .from('store_settings')
@@ -17,8 +24,6 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     console.error('Store error:', storeError)
     notFound()
   }
-
-  console.log('Store found:', store.store_name, 'User ID:', store.user_id)
 
   const { data: products, error: productsError } = await supabase
     .from('products')
@@ -45,8 +50,30 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
     console.error('Products error:', productsError)
   }
 
-  console.log('Products found:', products?.length || 0)
-  console.log('Products data:', products)
+  // Fetch ratings for all products
+  const productIds = products?.map(p => p.id) || []
+  let ratingsMap: Record<string, { avg: number; count: number }> = {}
+
+  if (productIds.length > 0) {
+    const { data: reviews } = await adminClient
+      .from('reviews')
+      .select('product_id, rating')
+      .in('product_id', productIds)
+      .eq('is_approved', true)
+
+    if (reviews) {
+      // Calculate average ratings per product
+      const grouped: Record<string, number[]> = {}
+      reviews.forEach(r => {
+        if (!grouped[r.product_id]) grouped[r.product_id] = []
+        grouped[r.product_id].push(r.rating)
+      })
+      Object.entries(grouped).forEach(([productId, ratings]) => {
+        const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length
+        ratingsMap[productId] = { avg: Math.round(avg * 10) / 10, count: ratings.length }
+      })
+    }
+  }
 
   const publishedProducts = (products || []).filter((product) => {
     const itemData = Array.isArray(product.items) ? product.items[0] : product.items
@@ -56,7 +83,11 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
       itemData &&
       itemData.quantity_on_hand > 0
     )
-  })
+  }).map(product => ({
+    ...product,
+    averageRating: ratingsMap[product.id]?.avg || 0,
+    totalReviews: ratingsMap[product.id]?.count || 0,
+  }))
 
   console.log('Published products after filter:', publishedProducts.length)
 
@@ -84,7 +115,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
           )}
         </div>
 
-        <ProductGrid products={publishedProducts as any} storeSlug={slug} />
+        <ProductGrid products={publishedProducts} storeSlug={slug} customerId={customerId} />
       </div>
     </div>
   )
