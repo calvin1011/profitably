@@ -1,4 +1,5 @@
-import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { cookies } from 'next/headers'
 import { notFound } from 'next/navigation'
 import ProductDetailClient from '@/components/storefront/ProductDetailClient'

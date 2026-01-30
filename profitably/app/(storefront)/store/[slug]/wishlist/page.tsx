@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers'
-import { createAdminClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound, redirect } from 'next/navigation'
 import WishlistClient from './WishlistClient'
 
@@ -58,7 +58,7 @@ export default async function WishlistPage({ params }: { params: Promise<{ slug:
 
   // Filter to only this store's products
   const storeWishlistItems = (wishlistItems || []).filter(
-    (item) => item.products && (item.products as { user_id: string }).user_id === store.user_id
+    (item) => item.products && (item.products as any).user_id === store.user_id
   )
 
   return (
