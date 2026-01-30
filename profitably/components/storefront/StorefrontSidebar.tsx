@@ -25,6 +25,7 @@ export default function StorefrontSidebar() {
 
   const isHelpPath = pathname.startsWith(`${basePath}/help`)
   const isContactPath = pathname.startsWith(`${basePath}/contact`)
+  const isWishlistPath = pathname.startsWith(`${basePath}/wishlist`)
 
   const navItems: NavItem[] = [
     {
@@ -38,6 +39,12 @@ export default function StorefrontSidebar() {
       label: 'My Orders',
       href: `${basePath}/account?tab=orders`,
       isActive: isOrdersPath || (isAccountPath && activeTab !== 'tracking'),
+    },
+    {
+      id: 'wishlist',
+      label: 'My Wishlist',
+      href: `${basePath}/wishlist`,
+      isActive: isWishlistPath,
     },
     {
       id: 'tracking',

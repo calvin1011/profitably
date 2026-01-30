@@ -76,7 +76,7 @@ export default function OrdersClient({ initialOrders }: OrdersClientProps) {
       order.customers.full_name.toLowerCase().includes(searchQuery.toLowerCase())
 
     const matchesStatus =
-      filterStatus === 'all' || order.status === filterStatus
+      filterStatus === 'all' || order.payment_status === filterStatus
 
     const matchesFulfillment =
       filterFulfillment === 'all' ||
