@@ -145,7 +145,7 @@ export async function POST(request: Request) {
         .in('orders.status', ['paid', 'processing', 'shipped', 'delivered'])
         .limit(1)
 
-      isVerifiedPurchase = orderItems && orderItems.length > 0
+      isVerifiedPurchase = !!(orderItems && orderItems.length > 0)
     }
 
     const { data: review, error } = await supabase
