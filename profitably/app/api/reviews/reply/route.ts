@@ -97,7 +97,7 @@ export async function POST(request: Request) {
       .eq('id', reviewId)
       .single()
 
-    if (!review || (review.products as { user_id: string })?.user_id !== user.id) {
+    if (!review || (review.products as any)?.user_id !== user.id) {
       return NextResponse.json(
         { error: 'Review not found or unauthorized' },
         { status: 404 }
@@ -191,7 +191,7 @@ export async function PATCH(request: Request) {
       .eq('id', reviewId)
       .single()
 
-    if (!review || (review.products as { user_id: string })?.user_id !== user.id) {
+    if (!review || (review.products as any)?.user_id !== user.id) {
       return NextResponse.json(
         { error: 'Review not found or unauthorized' },
         { status: 404 }
