@@ -24,30 +24,44 @@ export default async function ProductDetailPage({
     try {
       const payload = JSON.parse(Buffer.from(sessionToken, 'base64').toString())
       if (payload?.exp && Date.now() < payload.exp && payload?.type === 'guest') {
-        sessionType = 'guest'
         if (payload?.orderId) {
-          const { data: order } = await adminClient
+          const { data: order, error: orderError } = await adminClient
             .from('orders')
             .select('customer_id')
             .eq('id', payload.orderId)
             .single()
-          derivedCustomerId = order?.customer_id || null
+          if (orderError || !order?.customer_id) {
+            console.error('Error resolving customer from guest session:', orderError)
+            sessionType = 'none'
+            derivedCustomerId = null
+          } else {
+            sessionType = 'guest'
+            derivedCustomerId = order.customer_id
+          }
         }
       } else if (payload?.exp && Date.now() < payload.exp && payload?.type === 'customer') {
-        sessionType = 'customer'
         if (payload?.customerId) {
+          sessionType = 'customer'
           derivedCustomerId = payload.customerId
         } else if (payload?.email) {
-          const { data: customer } = await adminClient
+          const { data: customer, error: customerError } = await adminClient
             .from('customers')
             .select('id')
             .ilike('email', payload.email)
             .single()
-          derivedCustomerId = customer?.id || null
+          if (customerError || !customer?.id) {
+            console.error('Error resolving customer from session email:', customerError)
+            sessionType = 'none'
+            derivedCustomerId = null
+          } else {
+            sessionType = 'customer'
+            derivedCustomerId = customer.id
+          }
         }
       }
     } catch {
       sessionType = 'none'
+      derivedCustomerId = null
     }
   }
 
